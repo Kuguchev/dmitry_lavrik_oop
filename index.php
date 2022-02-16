@@ -1,74 +1,80 @@
 <?php
 
-abstract class Node
+// Только публичные методы без тела
+// Либо константы (редко)
+interface IRenderable
 {
-    abstract public function render() : string;
+    public function render() : string;
 }
 
+interface IValidable
+{
+    public function isValid() : bool;
+}
 
-// Класс является абстрактным, если содержит абстрактный метод!
-// кроме того, нельзя создать объект абстрактного класса
-
-// Интерфейсы нужны для того, чтобы уйти от проблемы множественного наследования
-// добавить некоторый функционал классам, их может быть сколько угодно
-
-abstract class Tag extends Node
+abstract class Tag implements IRenderable, IValidable
 {
     protected string $name;
     protected array $attrs = [];
+    protected array $allowedNames;
 
     public function __construct(string $name)
     {
         $this->name = $name;
     }
 
-    public function attr(string $name, string $value) : Tag
+    // Можно не указывать абстрактный метод render
+    // Это бремя ложится на дочерние классы, т.к. это абстрактный класс
+    // и его экземпляр мы создавать не можем, поэтому определение метода и ложится
+    // на дочерние классы...
+    // abstract public function render() : string;
+
+    public function attr(string $name, string $value)
     {
         $this->attrs[$name] = $value;
         return $this;
     }
 
-    // Допустим, может возникнуть такая ситуация, что некоторый из детей
-    // не переопределил метод render, тогда будет вызов этого метода
-    // родительского класса Tag и ничего не будет отображаться в итоговом коде!
-    // Необходимо заставить дочерний класс переопределять данный метод!
-    // Это достигается с помощью такого понятия как абстранктный класс!
-
-//    public function render() : string
-//    {
-//        return '';
-//    }
-
-    // Абстрактный метод не имеет тела
-    abstract public function render() : string;
-
     protected function attrsToString() : string
     {
         $pairs = [];
 
-        foreach($this->attrs as $name => $value) {
-            $pairs[] = "{$name}=\"{$value}\"";
+        foreach($this->attrs as $name => $value){
+            $pairs[] = "$name=\"$value\"";
         }
         $attrsStr = implode(' ', $pairs);
+        return (!empty($attrsStr)) ? ' ' . $attrsStr : '';
+    }
 
-        return (!empty($attrsStr)) ? ' ' . $attrsStr : '';;
+    // Метод доступен всем наследникам!
+    // Мы его переопределили в абстрактном классе, поэтому нет необходимости
+    // его переопределять в классах наследниках
+    public function isValid(): bool
+    {
+        return in_array($this->name, $this->allowedNames);
     }
 }
 
 class SingleTag extends Tag
 {
+    protected array $allowedNames = ['img', 'hr'];
+
     public function render() : string
     {
         $attrsStr = $this->attrsToString();
-        return "<{$this->name}{$attrsStr}>";
+        return "<{$this->name}$attrsStr>";
     }
 }
 
 class PairTag extends Tag
 {
+    protected array $allowedNames = ['div', 'span'];
     protected array $children = [];
 
-    public function appendChild(Node $child) : PairTag
+    // Передача в функцию типа IRenderable
+    // позволяет связывать классы, которые находятся не в одной иерархии!
+    // Например можно передать объект класса TextNode, PairTag или SingleTag
+    public function appendChild(IRenderable $child)
     {
         $this->children[] = $child;
         return $this;
@@ -78,48 +84,52 @@ class PairTag extends Tag
     {
         $attrsStr = $this->attrsToString();
 
-        // Простой способ добавления дочерних тегов
-//        $innerHTML = '';
-//
-//        foreach ($this->children as $child) {
-//            $innerHTML .= $child->render();
-//        }
-
-        // Продвинутый способ добавления дочерних тегов
-        // Анонимная функция применяется к каждому элементу массива
-        $innerHTML = array_map(function (Node $tag) {
+        $childrenHTML = array_map(function(IRenderable $tag)
+        {
             return $tag->render();
         }, $this->children);
 
-        $innerHTML = implode('', $innerHTML);
-        return "<{$this->name}{$attrsStr}>{$innerHTML}<{$this->name}/>";
+        $innerHTML = implode('', $childrenHTML);
+        return "<{$this->name}$attrsStr>$innerHTML</{$this->name}>";
     }
 }
 
-class TextNode extends Node
+class TextNode implements IRenderable, IValidable
 {
     protected string $text;
-    public function __construct(string $text)
+
+    public function __construct($text)
     {
-        $this->text = $text;
+        $this->text = trim($text);
     }
 
-    public function render(): string
+    public function render() : string
     {
         return $this->text;
     }
+
+    public function isValid(): bool
+    {
+        return $this->text !== '';
+    }
 }
 
-$img = (new SingleTag('img'))
-    ->attr('src', './nz.jpg')
-    ->attr('alt', 'nz not found');
+class Markdown implements IValidable
+{
+    public function isValid(): bool
+    {
+        return true;
+    }
+}
 
-$hr = new SingleTag('hr');
+$img = (new SingleTag('img'))->attr('src', 'f1.jpg')->attr('alt', 'f1 not found');
+$a = (new PairTag('a'))->attr('href', '#')->appendChild(new TextNode('go home'));
 
-$a = (new PairTag('a'))
-    ->attr('href', './nz')
+$label = (new PairTag('label'))
     ->appendChild($img)
-    ->appendChild(new TextNode('Go Home'))
-    ->appendChild($hr);
+    ->appendChild(new TextNode('attention'))
+    ->appendChild($a);
 
-echo $a->render();
+$html = $label->render();
+echo $html;
+echo '<hr>' . htmlspecialchars($html);
