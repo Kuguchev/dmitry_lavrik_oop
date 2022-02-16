@@ -1,12 +1,19 @@
 <?php
 
+abstract class Node
+{
+    abstract public function render() : string;
+}
+
+
 // Класс является абстрактным, если содержит абстрактный метод!
 // кроме того, нельзя создать объект абстрактного класса
 
 // Интерфейсы нужны для того, чтобы уйти от проблемы множественного наследования
 // добавить некоторый функционал классам, их может быть сколько угодно
 
-abstract class Tag {
+abstract class Tag extends Node
+{
     protected string $name;
     protected array $attrs = [];
 
@@ -61,7 +68,7 @@ class PairTag extends Tag
 {
     protected array $children = [];
 
-    public function appendChild(Tag | string $child) : PairTag
+    public function appendChild(Node $child) : PairTag
     {
         $this->children[] = $child;
         return $this;
@@ -80,15 +87,26 @@ class PairTag extends Tag
 
         // Продвинутый способ добавления дочерних тегов
         // Анонимная функция применяется к каждому элементу массива
-
-        // mixed тип данных only PHP8, не рекомендуется использовать!
-        $innerHTML = array_map(function (Tag | string $tag) {
-            // instanceof - проверка того, является ли текущий
-            // объект экземпляром класса Tag
-            return $tag instanceof Tag ? $tag->render() : $tag;
+        $innerHTML = array_map(function (Node $tag) {
+            return $tag->render();
         }, $this->children);
+
         $innerHTML = implode('', $innerHTML);
         return "<{$this->name}{$attrsStr}>{$innerHTML}<{$this->name}/>";
+    }
+}
+
+class TextNode extends Node
+{
+    protected string $text;
+    public function __construct(string $text)
+    {
+        $this->text = $text;
+    }
+
+    public function render(): string
+    {
+        return $this->text;
     }
 }
 
@@ -101,7 +119,7 @@ $hr = new SingleTag('hr');
 $a = (new PairTag('a'))
     ->attr('href', './nz')
     ->appendChild($img)
-    ->appendChild('test')
+    ->appendChild(new TextNode('Go Home'))
     ->appendChild($hr);
 
 echo $a->render();
