@@ -12,7 +12,17 @@ interface IValidable
     public function isValid() : bool;
 }
 
-abstract class Tag implements IRenderable, IValidable
+
+// У интерфейсов может быть множественное наследование!
+// Создаем интерфейс INode, который перенимает методы
+// интерфейсов IRenderable, IValidable
+
+interface INode extends IRenderable, IValidable
+{
+
+}
+
+abstract class Tag implements INode
 {
     protected string $name;
     protected array $attrs = [];
@@ -68,13 +78,13 @@ class SingleTag extends Tag
 
 class PairTag extends Tag
 {
-    protected array $allowedNames = ['div', 'span'];
+    protected array $allowedNames = ['div', 'span', 'a'];
     protected array $children = [];
 
     // Передача в функцию типа IRenderable
     // позволяет связывать классы, которые находятся не в одной иерархии!
     // Например можно передать объект класса TextNode, PairTag или SingleTag
-    public function appendChild(IRenderable $child)
+    public function appendChild(INode $child)
     {
         $this->children[] = $child;
         return $this;
@@ -84,9 +94,13 @@ class PairTag extends Tag
     {
         $attrsStr = $this->attrsToString();
 
-        $childrenHTML = array_map(function(IRenderable $tag)
+        // Добавив интерфейс INode
+        // мы сможем получить доступ к методу render и isValid!
+        // у тех объектов у которых реалихован интерфейс INode
+        $childrenHTML = array_map(function(INode $tag)
         {
-            return $tag->render();
+            // Например можно проверить теперь валидность тега
+            return $tag->isValid() ? $tag->render() : '';
         }, $this->children);
 
         $innerHTML = implode('', $childrenHTML);
@@ -94,7 +108,7 @@ class PairTag extends Tag
     }
 }
 
-class TextNode implements IRenderable, IValidable
+class TextNode implements INode
 {
     protected string $text;
 
@@ -114,8 +128,13 @@ class TextNode implements IRenderable, IValidable
     }
 }
 
-class Markdown implements IValidable
+class RandomSomething implements INode
 {
+    public function render(): string
+    {
+        return mt_rand(1, 1000000);
+    }
+
     public function isValid(): bool
     {
         return true;
@@ -128,8 +147,10 @@ $a = (new PairTag('a'))->attr('href', '#')->appendChild(new TextNode('go home'))
 $label = (new PairTag('label'))
     ->appendChild($img)
     ->appendChild(new TextNode('attention'))
-    ->appendChild($a);
+    ->appendChild($a)
+    ->appendChild(new RandomSomething());
 
 $html = $label->render();
+
 echo $html;
 echo '<hr>' . htmlspecialchars($html);
