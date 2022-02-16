@@ -1,9 +1,12 @@
 <?php
 
-// Общее у тегов: название и атрибут
-// Любой тег можно отобразить
+// Класс является абстрактным, если содержит абстрактный метод!
+// кроме того, нельзя создать объект абстрактного класса
 
-class Tag {
+// Интерфейсы нужны для того, чтобы уйти от проблемы множественного наследования
+// добавить некоторый функционал классам, их может быть сколько угодно
+
+abstract class Tag {
     protected string $name;
     protected array $attrs = [];
 
@@ -15,13 +18,22 @@ class Tag {
     public function attr(string $name, string $value) : Tag
     {
         $this->attrs[$name] = $value;
-        return $this; // Аля паттерн builder
+        return $this;
     }
 
-    public function render() : string
-    {
-        return '';
-    }
+    // Допустим, может возникнуть такая ситуация, что некоторый из детей
+    // не переопределил метод render, тогда будет вызов этого метода
+    // родительского класса Tag и ничего не будет отображаться в итоговом коде!
+    // Необходимо заставить дочерний класс переопределять данный метод!
+    // Это достигается с помощью такого понятия как абстранктный класс!
+
+//    public function render() : string
+//    {
+//        return '';
+//    }
+
+    // Абстрактный метод не имеет тела
+    abstract public function render() : string;
 
     protected function attrsToString() : string
     {
@@ -41,7 +53,6 @@ class SingleTag extends Tag
     public function render() : string
     {
         $attrsStr = $this->attrsToString();
-
         return "<{$this->name}{$attrsStr}>";
     }
 }
@@ -50,10 +61,10 @@ class PairTag extends Tag
 {
     protected array $children = [];
 
-    public function appendChild(Tag $child) : PairTag
+    public function appendChild(Tag | string $child) : PairTag
     {
         $this->children[] = $child;
-        return $this; // Аля паттерн builder
+        return $this;
     }
 
     public function render() : string
@@ -69,17 +80,17 @@ class PairTag extends Tag
 
         // Продвинутый способ добавления дочерних тегов
         // Анонимная функция применяется к каждому элементу массива
-        $innerHTML = array_map(function (Tag $tag){
-            return $tag->render();
+
+        // mixed тип данных only PHP8, не рекомендуется использовать!
+        $innerHTML = array_map(function (Tag | string $tag) {
+            // instanceof - проверка того, является ли текущий
+            // объект экземпляром класса Tag
+            return $tag instanceof Tag ? $tag->render() : $tag;
         }, $this->children);
         $innerHTML = implode('', $innerHTML);
         return "<{$this->name}{$attrsStr}>{$innerHTML}<{$this->name}/>";
     }
 }
-
-// Цепочка вызовов методов
-// После применения метода attr возвращается ссылка на текущий объект
-// соответственно мы также можем обратиться к этому же объекту
 
 $img = (new SingleTag('img'))
     ->attr('src', './nz.jpg')
@@ -90,6 +101,7 @@ $hr = new SingleTag('hr');
 $a = (new PairTag('a'))
     ->attr('href', './nz')
     ->appendChild($img)
+    ->appendChild('test')
     ->appendChild($hr);
 
 echo $a->render();
